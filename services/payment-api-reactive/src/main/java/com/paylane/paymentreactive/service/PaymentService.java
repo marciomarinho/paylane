@@ -8,6 +8,7 @@ import com.paylane.paymentreactive.repo.MerchantRepository;
 import com.paylane.paymentreactive.repo.PaymentRepository;
 import com.paylane.paymentreactive.web.Dtos.PaymentResponse;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
@@ -70,6 +71,11 @@ public class PaymentService {
 
     public Mono<PaymentResponse> find(UUID id) {
         return payments.find(id).map(PaymentResponse::of);
+    }
+
+    /** Stream all payments, backpressure preserved end to end (R2DBC cursor → HTTP). */
+    public Flux<PaymentResponse> streamAll() {
+        return payments.streamAll().map(PaymentResponse::of);
     }
 
     private String toJson(Object value) {

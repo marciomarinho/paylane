@@ -28,9 +28,23 @@ genuinely fits — streaming and end-to-end backpressure.
 > holds — the throughput edge is gone for this workload — so the decision stands on the evidence,
 > not just the argument.
 
+## Where reactive still wins — and we show it
+
+The benchmark above is request/response, which is exactly where the two models converge. Reactive's
+structural advantage is *streaming with backpressure*, so the twin includes a streaming exhibit to
+make that concrete rather than asserted: `GET /payments/stream` (and a synthetic `GET
+/payments/firehose?count=N`) return a `Flux` as newline-delimited JSON. Demand propagates end to
+end — Netty's write demand → the `Flux` → the R2DBC cursor (or the generator) — so a slow consumer
+throttles the *source* and the service never buffers the whole stream.
+
+`scripts/backpressure.sh` demonstrates it: reading a 5,000,000-row firehose at 32 KB/s, the service
+holds flat at ~660 MB while only a few thousand rows have been produced; time-to-first-byte is ~4 ms.
+A blocking model would either pin a thread on the slow client for the duration or buffer to keep the
+thread free. This is the workload where we would reach for WebFlux on purpose.
+
 ## Consequences
 
 - Blocking JDBC is fine again — no need for R2DBC or to colour every method `Mono`/`Flux`.
 - One caveat honoured in code: avoid pinning carrier threads inside `synchronized` blocks over IO.
 - We keep the ability to reach for reactive per-service if the benchmark says a given workload
-  needs it, rather than adopting it everywhere by default.
+  needs it, rather than adopting it everywhere by default — e.g. a streaming/export endpoint.

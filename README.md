@@ -106,7 +106,14 @@ concurrency; virtual-threads MVC used less memory here (482MiB vs 712MiB RSS) an
 *faster* at low concurrency (50 VUs) where reactive's per-request overhead hasn't amortized. So:
 **MVC on virtual threads is the right default** — you keep blocking JDBC and readable stack traces
 for near-identical numbers. Reactive earns its complexity where it structurally wins — streaming and
-end-to-end backpressure — which this request/response workload doesn't exercise. See ADR 003.
+end-to-end backpressure — which this request/response workload doesn't exercise.
+
+To make that concrete, the twin ships a **streaming exhibit**: `GET /payments/stream` (and a synthetic
+`GET /payments/firehose?count=N`) return a `Flux` as NDJSON with demand propagated end to end
+(Netty → `Flux` → R2DBC cursor). `scripts/backpressure.sh` reads a 5,000,000-row firehose at 32 KB/s
+and the service memory stays flat (~660 MB) while only a few thousand rows have been produced —
+backpressure throttling the source, not buffering. That's the workload where WebFlux wins on purpose.
+See ADR 003.
 
 ## Design decisions
 

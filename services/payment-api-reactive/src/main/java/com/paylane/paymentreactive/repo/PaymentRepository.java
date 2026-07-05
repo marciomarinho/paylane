@@ -6,6 +6,7 @@ import io.r2dbc.spi.Row;
 import io.r2dbc.spi.RowMetadata;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Repository;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.OffsetDateTime;
@@ -40,6 +41,20 @@ public class PaymentRepository {
                 .bind("id", payment.id())
                 .fetch()
                 .rowsUpdated();
+    }
+
+    /**
+     * Stream every payment as a {@link Flux}. R2DBC fetches rows on demand (Reactive Streams
+     * {@code request(n)}), so a slow HTTP consumer throttles the database cursor rather than the
+     * service buffering the whole result set — end-to-end backpressure, DB → Netty.
+     */
+    public Flux<Payment> streamAll() {
+        return db.sql("""
+                        SELECT id, merchant_id, amount_minor, currency, status, created_at, updated_at
+                        FROM payment ORDER BY created_at
+                        """)
+                .map(this::map)
+                .all();
     }
 
     public Mono<Payment> find(UUID id) {

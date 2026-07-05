@@ -1,7 +1,10 @@
 package com.paylane.paymentreactive;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.paylane.paymentreactive.web.Dtos.PaymentResponse;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -91,6 +94,17 @@ class PaymentApiReactiveIntegrationTest {
 
         assertThat(mapper.readTree(second).get("id").asText())
                 .isEqualTo(mapper.readTree(first).get("id").asText());
+    }
+
+    @Test
+    void firehose_streamsRequestedNumberOfRows() {
+        List<PaymentResponse> rows = client.get().uri("/payments/firehose?count=25")
+                .exchange().expectStatus().isOk()
+                .returnResult(PaymentResponse.class)
+                .getResponseBody().collectList().block();
+
+        assertThat(rows).hasSize(25);
+        assertThat(rows).allSatisfy(r -> assertThat(r.status()).isEqualTo("CAPTURED"));
     }
 
     @Test
