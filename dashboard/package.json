@@ -1,0 +1,24 @@
+{
+  "name": "merchant-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "gen:api": "openapi-typescript openapi/payment-api.json -o lib/generated/payment-api.ts && openapi-typescript openapi/settlement.json -o lib/generated/settlement.ts && openapi-typescript openapi/ledger.json -o lib/generated/ledger.ts"
+  },
+  "dependencies": {
+    "next": "^14.2.35",
+    "openapi-fetch": "0.13.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "20.16.11",
+    "@types/react": "18.3.11",
+    "@types/react-dom": "18.3.0",
+    "openapi-typescript": "7.4.1",
+    "typescript": "5.6.3"
+  }
+}

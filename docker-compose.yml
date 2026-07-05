@@ -120,3 +120,21 @@ services:
         condition: service_healthy
       ledger:
         condition: service_started
+
+  # Thin read-only UI: payments, settlement batches, money-in-vs-paid-out. Server-rendered,
+  # typed client generated from the services' OpenAPI specs.
+  merchant-dashboard:
+    build: ./dashboard
+    environment:
+      PAYMENT_API_URL: http://payment-api:8081
+      SETTLEMENT_URL: http://settlement-worker:8083
+      LEDGER_URL: http://ledger:8082
+    ports:
+      - "${DASHBOARD_PORT:-3000}:3000"   # set DASHBOARD_PORT if 3000 is taken locally
+    depends_on:
+      payment-api:
+        condition: service_started
+      settlement-worker:
+        condition: service_started
+      ledger:
+        condition: service_started

@@ -11,10 +11,11 @@ It exists to demonstrate payments-domain engineering on a modern Java 21 / Sprin
 and settlement reconciliation** — each one small, real, and tested against real infrastructure.
 
 > **Status.** The core payment flow is complete and runnable — `payment-api → SNS/SQS →
-> settlement-worker → ledger` — plus a **reactive twin (`payment-api-reactive`) and a k6 benchmark**
-> answering "virtual threads or reactive?" with real numbers ([Benchmark](#benchmark-virtual-threads-vs-reactive)).
-> One-command local stack, integration tests on Testcontainers. The Next.js dashboard, OpenTelemetry
-> tracing, and CI/CD are the next layers — see [Roadmap](#roadmap).
+> settlement-worker → ledger` — plus a **reactive twin + k6 benchmark** answering "virtual threads or
+> reactive?" with real numbers ([Benchmark](#benchmark-virtual-threads-vs-reactive)), a **Next.js
+> dashboard** with a typed client generated from the services' OpenAPI specs, and a **GitHub Actions
+> CI pipeline** (build → test → scan → GHCR). One-command local stack, integration tests on
+> Testcontainers. OpenTelemetry tracing is the main remaining layer — see [Roadmap](#roadmap).
 
 ---
 
@@ -56,13 +57,16 @@ docker compose up --build          # Postgres x2, LocalStack, three services
 ```
 
 `demo.sh` walks the whole flow and finishes by printing every account balance and their sum, which
-is `0` — the ledger balanced. To see the dead-letter path:
+is `0` — the ledger balanced. Then open the **dashboard** at **http://localhost:3000** to see the
+payments, the settlement batch, and the money-in-vs-paid-out tiles. To see the dead-letter path:
 
 ```bash
 ./scripts/poison.sh                # drops a malformed message; it lands in the DLQ after 3 retries
+./scripts/backpressure.sh          # streams a 5M-row firehose slowly; watch reactive memory stay flat
 ```
 
-Service ports: payment-api `:8081`, ledger `:8082`, settlement-worker `:8083`, LocalStack `:4566`.
+Ports: dashboard `:3000`, payment-api `:8081`, ledger `:8082`, settlement-worker `:8083`,
+payment-api-reactive `:8091`, LocalStack `:4566`. (If `:3000` is taken locally, set `DASHBOARD_PORT`.)
 
 ### Poke it by hand
 
@@ -171,18 +175,18 @@ paylane/
 │   ├── payment-api-reactive/  behavioural twin (WebFlux + R2DBC) — benchmark counterpart
 │   ├── settlement-worker/     SQS consumer · dedupe · batch · reconcile · DLQ
 │   └── ledger/                double-entry core (SERIALIZABLE, append-only)
+├── dashboard/                 Next.js + TS · typed client generated from OpenAPI specs
 ├── bench/                     k6 mixed workload · run.sh · results.md
 ├── infra/localstack/          SNS/SQS + DLQ bootstrap
-└── scripts/                   demo.sh · poison.sh
+└── scripts/                   demo.sh · poison.sh · backpressure.sh
 ```
 
 ## Roadmap
 
 Deliberately staged; the core money-movement slice above is done first because it carries the
-domain weight. Done since: the **reactive twin + benchmark** (above). Next:
+domain weight. Done since: the **reactive twin + benchmark**, the **backpressure exhibit**, the
+**CI pipeline**, and the **dashboard** (all above). Next:
 
-- **`merchant-dashboard`** — a thin Next.js + TypeScript screen with a client generated from the
-  OpenAPI spec.
 - **Observability** — OpenTelemetry across all services, trace context propagated through SNS/SQS
   attributes, Grafana + Tempo + Prometheus in compose.
 - **`infra/`** — Terraform (plan-only) for the AWS shape: SNS, SQS + DLQ, RDS.
