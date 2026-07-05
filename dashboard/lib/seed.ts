@@ -62,7 +62,7 @@ export const SEED_EVENTS: Ev[] = [
   { t: "17:41:52", src: "sns", msg: "publish <b>payment.captured</b> pay_01683edc · msg 7f2e…" },
   { t: "17:41:53", src: "sqs", msg: "deliver → settlement-worker · attempt 1" },
   { t: "17:41:53", src: "worker", msg: "dedupe <b>MISS</b> → process · post journal J-0006" },
-  { t: "17:41:53", src: "ledger", msg: "Dr receivable 50.00 · Cr payable 48.24 · Cr fees 1.76 <b>✓ balanced</b>" },
+  { t: "17:41:53", src: "ledger", msg: "post A$50.00 in · A$48.24 to merchant · A$1.76 fee <b>✓ balanced</b>" },
   { t: "17:41:58", src: "sqs", msg: "redeliver msg 9d11… · attempt 4 of 4" },
   { t: "17:41:58", src: "dlq", msg: "<b>⚠ parked poison message</b> after 4 attempts → /dlq" },
   { t: "17:42:03", src: "idem", msg: "POST /payments · key af02… <b>REPLAY</b> → cached 201" },
