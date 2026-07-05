@@ -8,6 +8,7 @@ import net.jqwik.api.Provide;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,23 +36,27 @@ class LedgerInvariantProperties {
             long net = amount - fee;
 
             // Capture: scheme owes us `amount`; we owe the merchant `net`; we earn `fee`.
-            JournalEntry capture = new JournalEntry(
+            // For a tiny payment the fee can equal the amount (net == 0) — a zero leg is not a
+            // posting, so it is simply omitted; the entry still balances on the remaining legs.
+            List<Posting> captureLegs = new ArrayList<>();
+            captureLegs.add(new Posting("scheme_receivable", amount));
+            if (net != 0) {
+                captureLegs.add(new Posting("merchant_payable", -net));
+            }
+            captureLegs.add(new Posting("platform_fees", -fee));
+            apply(accounts, new JournalEntry(
                     "cap-" + System.identityHashCode(amounts) + "-" + amount + "-" + accounts.size(),
-                    "capture",
-                    List.of(
-                            new Posting("scheme_receivable", amount),
-                            new Posting("merchant_payable", -net),
-                            new Posting("platform_fees", -fee)));
-            apply(accounts, capture);
+                    "capture", captureLegs));
 
-            // Payout: settle what we owe the merchant out of cash.
-            JournalEntry payout = new JournalEntry(
-                    "pay-" + System.identityHashCode(amounts) + "-" + amount + "-" + accounts.size(),
-                    "payout",
-                    List.of(
-                            new Posting("merchant_payable", net),
-                            new Posting("cash", -net)));
-            apply(accounts, payout);
+            // Payout: settle what we owe the merchant out of cash. Nothing to pay when net == 0.
+            if (net != 0) {
+                apply(accounts, new JournalEntry(
+                        "pay-" + System.identityHashCode(amounts) + "-" + amount + "-" + accounts.size(),
+                        "payout",
+                        List.of(
+                                new Posting("merchant_payable", net),
+                                new Posting("cash", -net))));
+            }
         }
 
         long total = accounts.values().stream().mapToLong(Long::longValue).sum();

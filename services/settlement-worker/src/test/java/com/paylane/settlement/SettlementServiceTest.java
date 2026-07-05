@@ -91,6 +91,26 @@ class SettlementServiceTest {
     }
 
     @Test
+    void tinyPaymentWhereFeeEqualsAmount_settlesWithNoPayout() {
+        // amount 31c -> fee round(0.899)+30 = 31 -> net 0. Capture posts (zero leg omitted in the
+        // ledger client), the batch settles, but there is nothing to pay out.
+        UUID merchant = UUID.randomUUID();
+        service.handleCapture(capture(merchant, 31));
+
+        List<Batch> batches = service.runSettlement();
+
+        assertThat(batches).hasSize(1);
+        Batch b = batches.get(0);
+        assertThat(b.grossMinor()).isEqualTo(31);
+        assertThat(b.feeMinor()).isEqualTo(31);
+        assertThat(b.payoutMinor()).isZero();
+        assertThat(b.status()).isEqualTo("SETTLED");
+        verify(ledger).postCapture(org.mockito.ArgumentMatchers.any(), eq(31L), eq(31L));
+        verify(ledger, never()).postPayout(org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
     void badFeeParksBatchAsSuspended() {
         UUID merchant = UUID.randomUUID();
         // Insert an item whose recorded fee does NOT match the fee policy -> reconciliation fails.

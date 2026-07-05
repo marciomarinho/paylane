@@ -87,7 +87,10 @@ public class SettlementService {
         settlements.assignItemsToBatch(items.stream().map(Item::id).toList(), batchId);
 
         if (balanced) {
-            ledger.postPayout(batchId, payout);
+            // Only move cash when there is a positive payout (fees can consume a tiny batch entirely).
+            if (payout > 0) {
+                ledger.postPayout(batchId, payout);
+            }
             log.info("settled batch {} for merchant {}: gross={} fees={} payout={}",
                     batchId, merchantId, gross, fees, payout);
         } else {

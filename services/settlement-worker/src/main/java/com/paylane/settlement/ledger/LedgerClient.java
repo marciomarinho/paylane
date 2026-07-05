@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,13 +28,14 @@ public class LedgerClient {
     /** Capture: scheme owes us the gross; we owe the merchant the net; we book the fee as revenue. */
     public void postCapture(UUID paymentId, long amountMinor, long feeMinor) {
         long net = amountMinor - feeMinor;
-        post(new EntryRequest(
-                "capture:" + paymentId,
-                "capture " + paymentId,
-                List.of(
-                        new PostingDto("scheme_receivable", amountMinor),
-                        new PostingDto("merchant_payable", -net),
-                        new PostingDto("platform_fees", -feeMinor))));
+        List<PostingDto> legs = new ArrayList<>();
+        legs.add(new PostingDto("scheme_receivable", amountMinor));
+        // A tiny payment can have fee == amount (net == 0); a zero leg is omitted, not posted.
+        if (net != 0) {
+            legs.add(new PostingDto("merchant_payable", -net));
+        }
+        legs.add(new PostingDto("platform_fees", -feeMinor));
+        post(new EntryRequest("capture:" + paymentId, "capture " + paymentId, legs));
     }
 
     /** Payout: settle what we owe the merchant out of cash. */
