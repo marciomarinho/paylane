@@ -1,6 +1,7 @@
 /** Minor units (cents) as a currency string. Money is integer minor units end to end. */
 export function money(minor: number, currency = "AUD"): string {
-  return new Intl.NumberFormat("en-AU", { style: "currency", currency }).format(minor / 100);
+  const value = minor === 0 ? 0 : minor / 100; // normalize -0 so we never render "-$0.00"
+  return new Intl.NumberFormat("en-AU", { style: "currency", currency }).format(value);
 }
 
 export function shortId(id: string): string {

@@ -17,6 +17,8 @@ and settlement reconciliation** — each one small, real, and tested against rea
 > CI pipeline** (build → test → scan → GHCR). One-command local stack, integration tests on
 > Testcontainers. OpenTelemetry tracing is the main remaining layer — see [Roadmap](#roadmap).
 
+![paylane merchant dashboard — money-in / paid-out / fees / owed tiles, a payments table with status chips, and the settlement batch, all summing to a ledger that balances to zero](docs/dashboard.png)
+
 ---
 
 ## Architecture
