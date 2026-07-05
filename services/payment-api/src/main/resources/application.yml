@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: payment-api
+  threads:
+    virtual:
+      enabled: true            # Java 21 virtual threads: one thread per request, blocking JDBC stays cheap
+  datasource:
+    url: ${PAYMENT_DB_URL:jdbc:postgresql://localhost:5432/payment}
+    username: ${PAYMENT_DB_USER:paylane}
+    password: ${PAYMENT_DB_PASSWORD:paylane}
+    hikari:
+      maximum-pool-size: 20
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+server:
+  port: ${SERVER_PORT:8081}
+
+aws:
+  region: ${AWS_REGION:ap-southeast-2}
+  endpoint: ${AWS_ENDPOINT:}
+
+paylane:
+  sns:
+    topic-arn: ${PAYLANE_SNS_TOPIC_ARN:arn:aws:sns:ap-southeast-2:000000000000:payment-events}
+  outbox:
+    poll-ms: 1000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true

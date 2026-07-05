@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: ledger
+  threads:
+    virtual:
+      enabled: true            # Java 21 virtual threads for the MVC request path
+  datasource:
+    url: ${LEDGER_DB_URL:jdbc:postgresql://localhost:5433/ledger}
+    username: ${LEDGER_DB_USER:paylane}
+    password: ${LEDGER_DB_PASSWORD:paylane}
+    hikari:
+      # SERIALIZABLE + retry is the concurrency model; keep the pool modest.
+      maximum-pool-size: 10
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+server:
+  port: ${SERVER_PORT:8082}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true

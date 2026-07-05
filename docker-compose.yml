@@ -1,0 +1,100 @@
+# paylane — full local stack. `docker compose up --build` brings up Postgres x2, LocalStack
+# (SNS/SQS + DLQ), and the three services. No cloud account required.
+name: paylane
+
+services:
+  postgres-payment:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: paylane
+      POSTGRES_PASSWORD: paylane
+      POSTGRES_DB: payment
+    ports:
+      - "55432:5432"   # host-side debug port; services connect over the compose network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paylane -d payment"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  postgres-ledger:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: paylane
+      POSTGRES_PASSWORD: paylane
+      POSTGRES_DB: ledger
+    ports:
+      - "55433:5432"   # host-side debug port; services connect over the compose network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paylane -d ledger"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  localstack:
+    image: localstack/localstack:3.8
+    environment:
+      SERVICES: sns,sqs
+      AWS_DEFAULT_REGION: ap-southeast-2
+      SQS_ENDPOINT_STRATEGY: path
+    ports:
+      - "4566:4566"
+    volumes:
+      - ./infra/localstack/init-aws.sh:/etc/localstack/init/ready.d/init-aws.sh
+    healthcheck:
+      test: ["CMD-SHELL", "awslocal sqs get-queue-url --queue-name settlement-queue || exit 1"]
+      interval: 4s
+      timeout: 5s
+      retries: 25
+
+  ledger:
+    build: ./services/ledger
+    environment:
+      SERVER_PORT: 8082
+      LEDGER_DB_URL: jdbc:postgresql://postgres-ledger:5432/ledger
+      LEDGER_DB_USER: paylane
+      LEDGER_DB_PASSWORD: paylane
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres-ledger:
+        condition: service_healthy
+
+  payment-api:
+    build: ./services/payment-api
+    environment:
+      SERVER_PORT: 8081
+      PAYMENT_DB_URL: jdbc:postgresql://postgres-payment:5432/payment
+      PAYMENT_DB_USER: paylane
+      PAYMENT_DB_PASSWORD: paylane
+      AWS_REGION: ap-southeast-2
+      AWS_ENDPOINT: http://localstack:4566
+      PAYLANE_SNS_TOPIC_ARN: arn:aws:sns:ap-southeast-2:000000000000:payment-events
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres-payment:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+
+  settlement-worker:
+    build: ./services/settlement-worker
+    environment:
+      SERVER_PORT: 8083
+      SETTLEMENT_DB_URL: jdbc:postgresql://postgres-ledger:5432/ledger?currentSchema=settlement
+      SETTLEMENT_DB_USER: paylane
+      SETTLEMENT_DB_PASSWORD: paylane
+      AWS_REGION: ap-southeast-2
+      AWS_ENDPOINT: http://localstack:4566
+      PAYLANE_SQS_QUEUE_URL: http://localstack:4566/000000000000/settlement-queue
+      PAYLANE_LEDGER_URL: http://ledger:8082
+    ports:
+      - "8083:8083"
+    depends_on:
+      postgres-ledger:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+      ledger:
+        condition: service_started

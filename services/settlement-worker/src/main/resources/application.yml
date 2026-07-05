@@ -1,0 +1,47 @@
+spring:
+  application:
+    name: settlement-worker
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    # Shares the ledger Postgres instance, isolated in the `settlement` schema.
+    url: ${SETTLEMENT_DB_URL:jdbc:postgresql://localhost:5433/ledger?currentSchema=settlement}
+    username: ${SETTLEMENT_DB_USER:paylane}
+    password: ${SETTLEMENT_DB_PASSWORD:paylane}
+    hikari:
+      maximum-pool-size: 10
+      # Every connection resolves unqualified tables to the settlement schema first.
+      connection-init-sql: SET search_path TO settlement, public
+  flyway:
+    enabled: true
+    schemas: settlement
+    default-schema: settlement
+    create-schemas: true
+    baseline-on-migrate: true
+
+server:
+  port: ${SERVER_PORT:8083}
+
+aws:
+  region: ${AWS_REGION:ap-southeast-2}
+  endpoint: ${AWS_ENDPOINT:}
+
+paylane:
+  sqs:
+    enabled: ${SQS_ENABLED:true}
+    queue-url: ${PAYLANE_SQS_QUEUE_URL:http://localhost:4566/000000000000/settlement-queue}
+  ledger:
+    base-url: ${PAYLANE_LEDGER_URL:http://localhost:8082}
+  settlement:
+    cron: "0 0 2 * * *"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
