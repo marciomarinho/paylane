@@ -1,5 +1,7 @@
 # paylane
 
+[![ci](https://github.com/marciomarinho/paylane/actions/workflows/ci.yml/badge.svg)](https://github.com/marciomarinho/paylane/actions/workflows/ci.yml)
+
 A small payments platform you can run end-to-end on a laptop. A card payment is taken, an event
 flows over SNS/SQS to a back-office worker, the worker batches it into a merchant settlement, and a
 strict double-entry ledger records every cent — with the books always netting to zero.
