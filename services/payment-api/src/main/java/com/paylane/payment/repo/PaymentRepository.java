@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -50,6 +51,16 @@ public class PaymentRepository {
                 .param("id", id)
                 .query(this::map)
                 .optional();
+    }
+
+    public List<Payment> listRecent(int limit) {
+        return jdbc.sql("""
+                        SELECT id, merchant_id, amount_minor, currency, status, created_at, updated_at
+                        FROM payment ORDER BY created_at DESC LIMIT :limit
+                        """)
+                .param("limit", limit)
+                .query(this::map)
+                .list();
     }
 
     private Payment map(ResultSet rs, int rowNum) throws SQLException {

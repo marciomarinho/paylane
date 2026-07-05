@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 
@@ -76,6 +77,16 @@ public class PaymentService {
     @Transactional(readOnly = true)
     public java.util.Optional<PaymentResponse> find(UUID id) {
         return payments.find(id).map(PaymentResponse::of);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PaymentResponse> listRecent(int limit) {
+        return payments.listRecent(limit).stream().map(PaymentResponse::of).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Merchant> listMerchants() {
+        return merchants.listAll();
     }
 
     private String toJson(Object value) {

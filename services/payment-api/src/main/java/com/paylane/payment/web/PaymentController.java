@@ -1,5 +1,6 @@
 package com.paylane.payment.web;
 
+import com.paylane.payment.domain.Merchant;
 import com.paylane.payment.idempotency.IdempotencyService;
 import com.paylane.payment.idempotency.IdempotencyService.StoredResponse;
 import com.paylane.payment.service.PaymentService;
@@ -14,8 +15,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -64,6 +67,16 @@ public class PaymentController {
     public ResponseEntity<PaymentResponse> get(@PathVariable UUID id) {
         return payments.find(id).map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/payments")
+    public List<PaymentResponse> list(@RequestParam(defaultValue = "50") int limit) {
+        return payments.listRecent(Math.min(Math.max(limit, 1), 500));
+    }
+
+    @GetMapping("/merchants")
+    public List<Merchant> merchants() {
+        return payments.listMerchants();
     }
 
     private static ResponseEntity<String> json(StoredResponse res) {

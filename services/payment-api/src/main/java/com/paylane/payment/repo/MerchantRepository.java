@@ -4,6 +4,7 @@ import com.paylane.payment.domain.Merchant;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -40,6 +41,15 @@ public class MerchantRepository {
 
     public boolean exists(UUID id) {
         return find(id).isPresent();
+    }
+
+    public List<Merchant> listAll() {
+        return jdbc.sql("""
+                        SELECT id, name, settlement_account, status, created_at
+                        FROM merchant ORDER BY created_at
+                        """)
+                .query(this::mapMerchant)
+                .list();
     }
 
     private Merchant mapMerchant(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
