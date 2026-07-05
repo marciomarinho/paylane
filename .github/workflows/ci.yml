@@ -34,9 +34,29 @@ jobs:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
           cache: maven
-      - name: Build & test
+      - name: Build & test (unit + Testcontainers integration)
         working-directory: services/${{ matrix.service }}
         run: mvn -B verify
+      - name: Coverage summary
+        if: always()
+        working-directory: services/${{ matrix.service }}
+        run: |
+          CSV=target/site/jacoco/jacoco.csv
+          if [ -f "$CSV" ]; then
+            awk -F, -v svc="${{ matrix.service }}" 'NR>1 {lm+=$8; lc+=$9}
+              END { cov=(lc+lm>0)?100*lc/(lc+lm):0;
+                    printf "**%s** line coverage: %.1f%% (%d/%d lines)\n", svc, cov, lc, lc+lm }' \
+              "$CSV" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "no jacoco.csv (build may have failed before report)"
+          fi
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-${{ matrix.service }}
+          path: services/${{ matrix.service }}/target/site/jacoco
+          if-no-files-found: ignore
 
   # 2. DevSecOps: OWASP dependency check (SCA). Non-blocking — reports, uploads, never gates the
   #    build. Set an NVD_API_KEY repo secret to speed up / avoid NVD rate limits.
@@ -116,20 +136,31 @@ jobs:
             | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
       - name: Build image
         run: docker build -t "$IMAGE:${{ github.sha }}" "services/${{ matrix.service }}"
-      - name: Trivy image scan (report only)
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: ${{ env.IMAGE }}:${{ github.sha }}
-          format: sarif
-          output: trivy-${{ matrix.service }}.sarif
-          severity: CRITICAL,HIGH
-          exit-code: "0"
-      - name: Upload Trivy SARIF
+      - name: Install Trivy
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+      - name: Trivy scan (report to job summary)
+        run: |
+          echo "### Trivy — ${{ matrix.service }} (CRITICAL/HIGH)" >> "$GITHUB_STEP_SUMMARY"
+          trivy image --no-progress --severity CRITICAL,HIGH --exit-code 0 \
+            --format table "$IMAGE:${{ github.sha }}" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Trivy SARIF
+        run: |
+          trivy image --no-progress --severity CRITICAL,HIGH --exit-code 0 \
+            --format sarif --output "trivy-${{ matrix.service }}.sarif" "$IMAGE:${{ github.sha }}"
+      - name: Upload SARIF to code scanning
         if: always()
+        continue-on-error: true   # requires Advanced Security on private repos; non-blocking
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-${{ matrix.service }}.sarif
           category: trivy-${{ matrix.service }}
+      - name: Upload SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-${{ matrix.service }}
+          path: trivy-${{ matrix.service }}.sarif
+          if-no-files-found: ignore
       - name: Log in to GHCR
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
