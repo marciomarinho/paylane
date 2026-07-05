@@ -17,7 +17,7 @@ and settlement reconciliation** — each one small, real, and tested against rea
 > CI pipeline** (build → test → scan → GHCR). One-command local stack, integration tests on
 > Testcontainers. OpenTelemetry tracing is the main remaining layer — see [Roadmap](#roadmap).
 
-![paylane merchant dashboard — money-in / paid-out / fees / owed tiles, a payments table with status chips, and the settlement batch, all summing to a ledger that balances to zero](docs/dashboard.png)
+![paylane merchant ops dashboard — money-flow rail, per-payment state-machine tracks, a live outbox→SNS→SQS→worker event feed, settlement reconciliation (with a parked rounding-bug batch), the double-entry trial balance, and the virtual-threads-vs-WebFlux benchmark](docs/dashboard.png)
 
 ---
 
@@ -59,8 +59,11 @@ docker compose up --build          # Postgres x2, LocalStack, three services
 ```
 
 `demo.sh` walks the whole flow and finishes by printing every account balance and their sum, which
-is `0` — the ledger balanced. Then open the **dashboard** at **http://localhost:3000** to see the
-payments, the settlement batch, and the money-in-vs-paid-out tiles. To see the dead-letter path:
+is `0` — the ledger balanced. Then open the **merchant-ops dashboard** at **http://localhost:3000**:
+a money-flow rail, per-payment state-machine tracks, a live outbox→SNS→SQS→worker event feed,
+settlement reconciliation, and the double-entry trial balance — reading the real services through a
+typed client generated from their OpenAPI specs (and falling back to a seeded demo when idle). To see
+the dead-letter path:
 
 ```bash
 ./scripts/poison.sh                # drops a malformed message; it lands in the DLQ after 3 retries
