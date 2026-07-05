@@ -140,6 +140,17 @@ A few things worth calling out:
 cd services/ledger && mvn test
 ```
 
+## CI/CD
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and PR:
+
+1. **build + test** — `mvn verify` per service (unit + Testcontainers integration) on a matrix.
+2. **e2e smoke** — brings the whole stack up with `docker compose`, runs `demo.sh` (pay → settle →
+   books balance), then a short k6 smoke.
+3. **DevSecOps** — **Trivy** scans each image (results uploaded as SARIF to the Security tab) and
+   **OWASP dependency-check** runs SCA on each service.
+4. **publish** — on `main`, images are pushed to **GHCR** (`ghcr.io/<owner>/paylane/<service>`).
+
 ## Repo layout
 
 ```
@@ -165,7 +176,6 @@ domain weight. Done since: the **reactive twin + benchmark** (above). Next:
   OpenAPI spec.
 - **Observability** — OpenTelemetry across all services, trace context propagated through SNS/SQS
   attributes, Grafana + Tempo + Prometheus in compose.
-- **CI/CD** — GitHub Actions: build → test → Trivy image scan + OWASP dependency check → GHCR.
 - **`infra/`** — Terraform (plan-only) for the AWS shape: SNS, SQS + DLQ, RDS.
 
 ## What I'd do next at production scale
