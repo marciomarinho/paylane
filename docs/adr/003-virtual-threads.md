@@ -17,13 +17,16 @@ code stays straight-line and blocking — plain JDBC, plain `try`/`catch`, reada
 while the runtime multiplexes thousands of in-flight requests onto a handful of carrier threads.
 
 The reactive stack is not dismissed; it is measured. `payment-api-reactive` is a byte-for-byte
-behavioural twin on WebFlux + R2DBC, and `/bench` runs the same k6 scenario against both. The claim
-we want to *test*, not assert: for IO-bound request/response, virtual threads erase most of
+behavioural twin on WebFlux + R2DBC, and `bench/` runs the same k6 scenario against both. The claim
+we wanted to *test*, not assert: for IO-bound request/response, virtual threads erase most of
 reactive's throughput edge while keeping the simpler model; reactive keeps winning where it
 genuinely fits — streaming and end-to-end backpressure.
 
-> Status: the twin and benchmark are the next slice of work. This ADR records the decision and the
-> hypothesis; the README benchmark table will record the result.
+> Result (see `bench/results.md`): throughput within ~2% across three concurrency tiers and a
+> 200ms-slow-downstream variant, 0% errors. Reactive held a slightly tighter p99 at high concurrency;
+> virtual-threads MVC used less memory and was actually faster at low concurrency. The hypothesis
+> holds — the throughput edge is gone for this workload — so the decision stands on the evidence,
+> not just the argument.
 
 ## Consequences
 

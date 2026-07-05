@@ -8,9 +8,10 @@ It exists to demonstrate payments-domain engineering on a modern Java 21 / Sprin
 **idempotency, a transactional outbox, effectively-once event processing, double-entry accounting,
 and settlement reconciliation** — each one small, real, and tested against real infrastructure.
 
-> **Status.** The core vertical slice is complete and runnable: `payment-api → SNS/SQS →
-> settlement-worker → ledger`, with a one-command local stack and integration tests on
-> Testcontainers. The reactive twin + virtual-threads benchmark, the Next.js dashboard, OpenTelemetry
+> **Status.** The core payment flow is complete and runnable — `payment-api → SNS/SQS →
+> settlement-worker → ledger` — plus a **reactive twin (`payment-api-reactive`) and a k6 benchmark**
+> answering "virtual threads or reactive?" with real numbers ([Benchmark](#benchmark-virtual-threads-vs-reactive)).
+> One-command local stack, integration tests on Testcontainers. The Next.js dashboard, OpenTelemetry
 > tracing, and CI/CD are the next layers — see [Roadmap](#roadmap).
 
 ---
@@ -80,6 +81,31 @@ curl -s -X POST localhost:8083/settlements/run
 curl -s localhost:8082/accounts
 ```
 
+## Benchmark: virtual threads vs reactive
+
+`payment-api` (Spring MVC on **virtual threads**) and `payment-api-reactive` (**WebFlux + R2DBC**)
+are byte-for-byte behavioural twins on separate databases. `bench/` runs the same mixed workload
+(create+authorize → capture → read) against both, at three concurrency tiers plus a slow-downstream
+variant that injects a 200ms simulated card-scheme call. Reproduce: `docker compose up --build`, then
+`bench/run.sh`. Full numbers in [`bench/results.md`](bench/results.md); a representative slice:
+
+| scenario | stack | req/s | p50 | p99 |
+|---|---|---|---|---|
+| baseline, 300 VUs | mvc (virtual threads) | 7507 | 38.1ms | 107.5ms |
+| baseline, 300 VUs | reactive (WebFlux) | 7633 | 37.2ms | 97.7ms |
+| slow downstream 200ms, 200 VUs | mvc (virtual threads) | 1431 | 203.2ms | 240.3ms |
+| slow downstream 200ms, 200 VUs | reactive (WebFlux) | 1442 | 202.5ms | 214.7ms |
+
+*(0% errors across all runs; laptop/Docker Desktop, directional not datacenter.)*
+
+**Read:** throughput is within ~2% across the board — when the bottleneck is Postgres or a slow
+downstream, the request model barely matters. Reactive holds a slightly tighter p99 at high
+concurrency; virtual-threads MVC used less memory here (482MiB vs 712MiB RSS) and, notably, was
+*faster* at low concurrency (50 VUs) where reactive's per-request overhead hasn't amortized. So:
+**MVC on virtual threads is the right default** — you keep blocking JDBC and readable stack traces
+for near-identical numbers. Reactive earns its complexity where it structurally wins — streaming and
+end-to-end backpressure — which this request/response workload doesn't exercise. See ADR 003.
+
 ## Design decisions
 
 Three ADRs carry the reasoning:
@@ -122,8 +148,10 @@ paylane/
 ├── docs/adr/                  the three decisions above
 ├── services/
 │   ├── payment-api/           idempotency · state machine · outbox (MVC + virtual threads)
+│   ├── payment-api-reactive/  behavioural twin (WebFlux + R2DBC) — benchmark counterpart
 │   ├── settlement-worker/     SQS consumer · dedupe · batch · reconcile · DLQ
 │   └── ledger/                double-entry core (SERIALIZABLE, append-only)
+├── bench/                     k6 mixed workload · run.sh · results.md
 ├── infra/localstack/          SNS/SQS + DLQ bootstrap
 └── scripts/                   demo.sh · poison.sh
 ```
@@ -131,10 +159,8 @@ paylane/
 ## Roadmap
 
 Deliberately staged; the core money-movement slice above is done first because it carries the
-domain weight. Next:
+domain weight. Done since: the **reactive twin + benchmark** (above). Next:
 
-- **`payment-api-reactive`** — a behavioural twin on WebFlux + R2DBC, and a k6 benchmark in `/bench`
-  answering "virtual threads or reactive?" with a latency/throughput/memory table (ADR 003).
 - **`merchant-dashboard`** — a thin Next.js + TypeScript screen with a client generated from the
   OpenAPI spec.
 - **Observability** — OpenTelemetry across all services, trace context propagated through SNS/SQS

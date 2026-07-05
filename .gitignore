@@ -22,3 +22,6 @@ out/
 *.local
 .env
 
+
+# k6 raw run output (results.md is committed)
+bench/out/

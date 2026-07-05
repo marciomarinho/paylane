@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: payment-api-reactive
+  r2dbc:
+    url: ${PAYMENT_R2DBC_URL:r2dbc:postgresql://localhost:55432/payment_reactive}
+    username: ${PAYMENT_DB_USER:paylane}
+    password: ${PAYMENT_DB_PASSWORD:paylane}
+    pool:
+      enabled: true
+      initial-size: 5
+      max-size: 20
+  # Flyway runs over JDBC at startup; the app serves over R2DBC.
+  flyway:
+    enabled: true
+    url: ${PAYMENT_JDBC_URL:jdbc:postgresql://localhost:55432/payment_reactive}
+    user: ${PAYMENT_DB_USER:paylane}
+    password: ${PAYMENT_DB_PASSWORD:paylane}
+    baseline-on-migrate: true
+
+server:
+  port: ${SERVER_PORT:8091}
+
+aws:
+  region: ${AWS_REGION:ap-southeast-2}
+  endpoint: ${AWS_ENDPOINT:}
+
+paylane:
+  sns:
+    topic-arn: ${PAYLANE_SNS_TOPIC_ARN:arn:aws:sns:ap-southeast-2:000000000000:payment-events}
+  outbox:
+    poll-ms: 1000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
