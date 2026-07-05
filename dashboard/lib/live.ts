@@ -68,23 +68,27 @@ export async function getLive(): Promise<StageData> {
     };
 
     const order = ["scheme_receivable", "merchant_payable", "platform_fees", "cash"];
+    const SIDE: Record<string, string> = {
+      scheme_receivable: "money in", merchant_payable: "owed to merchants",
+      platform_fees: "fee revenue", cash: "paid out",
+    };
     const normalCr = (type: string) => type !== "ASSET";
-    let drSum = 0, crSum = 0;
+    let inSum = 0, outSum = 0;
     const accounts: Account[] = order
       .map((code) => balances.find((b) => b.code === code))
       .filter(Boolean)
       .map((b: any) => {
         const v = b.balanceMinor as number;
         const isCr = v < 0 || (v === 0 && normalCr(b.type));
-        if (isCr) crSum += Math.abs(v); else drSum += v;
+        if (isCr) outSum += Math.abs(v); else inSum += v;
         return {
           name: b.code,
-          side: b.type,
-          bal: (isCr ? "Cr " : "Dr ") + money(Math.abs(v)),
+          side: SIDE[b.code] ?? String(b.type).toLowerCase(),
+          bal: "A$" + money(Math.abs(v)),
           drcr: (isCr ? "cr" : "dr") as "cr" | "dr",
         };
       });
-    const trial = `Σ Dr ${money(drSum)} = Σ Cr ${money(crSum)} — trial balance ${drSum === crSum ? "holds" : "BROKEN"}`;
+    const trial = `A$${money(inSum)} in  =  A$${money(outSum)} out — the books ${inSum === outSum ? "balance" : "DON'T balance"}`;
 
     const batches: Batch[] = ((batchRes.data as any[]) ?? []).slice(0, 3).map((b) => {
       const settled = b.status === "SETTLED";
@@ -93,7 +97,7 @@ export async function getLive(): Promise<StageData> {
         id: "batch #" + b.id,
         context: shortId(b.merchantId) + (settled ? " · paid" : ""),
         status: { cls: suspended ? "suspended" : settled ? "settled" : "auth", text: b.status },
-        eq: `${money(b.grossMinor)} − ${money(b.feeMinor)} = <b>${money(b.payoutMinor)}</b>` +
+        eq: `A$${money(b.grossMinor)} − A$${money(b.feeMinor)} fees = <b>A$${money(b.payoutMinor)}</b>` +
           (settled ? ' <span class="ok">✓ paid out</span>' : suspended ? ' <span class="bad">parked</span>' : ""),
       };
     });

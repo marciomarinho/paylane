@@ -136,7 +136,7 @@ export default function Stage({ data }: { data: StageData }) {
     const extras: [string, () => string][] = [
       ["idem", () => `replay key ${hex(4)}… → <b>cached 201</b> · no double charge`],
       ["sqs", () => `deliver → settlement-worker · attempt 1 · ${hex(4)}…`],
-      ["ledger", () => `trial balance recheck · <b>Σ = 0.00 ✓</b>`],
+      ["ledger", () => `trial balance recheck · <b>in = out ✓</b>`],
     ];
     const amb = setInterval(() => {
       if (!runningRef.current) return;
@@ -169,16 +169,16 @@ export default function Stage({ data }: { data: StageData }) {
         <div className="flow">
           <div className="stat">
             <div className="lbl">MONEY IN</div>
-            <div className="val num"><span className="cur">$</span>{fmt(money.inMinor)}</div>
+            <div className="val num"><span className="cur">A$</span>{fmt(money.inMinor)}</div>
             <div className="sub">captured · scheme receivable</div>
           </div>
           <div className="pipe fee">
             <div className="duct"><i /><i /></div>
-            <div className="tag">platform fees <b>−${fmt(money.feeMinor)}</b> · 2.9% + 30¢</div>
+            <div className="tag">platform fees <b>−A${fmt(money.feeMinor)}</b> · 2.9% + 30¢</div>
           </div>
           <div className="stat">
             <div className="lbl">PAID OUT</div>
-            <div className="val num"><span className="cur">$</span>{fmt(money.paidMinor)}</div>
+            <div className="val num"><span className="cur">A$</span>{fmt(money.paidMinor)}</div>
             <div className="sub">settled to merchant cash</div>
           </div>
           <div className="pipe">
@@ -187,15 +187,15 @@ export default function Stage({ data }: { data: StageData }) {
           </div>
           <div className="stat">
             <div className="lbl">OWED TO MERCHANTS</div>
-            <div className="val num"><span className="cur">$</span>{fmt(owedMinor)}</div>
-            <div className="sub">merchant payable · target $0.00</div>
+            <div className="val num"><span className="cur">A$</span>{fmt(owedMinor)}</div>
+            <div className="sub">merchant payable · target A$0.00</div>
           </div>
         </div>
         <div className="seal">
           <div className="ring">✓</div>
           <div>
-            <h3>Books balance — <span className="num">Σ = $0.00</span></h3>
-            <p>Trial balance recomputed from the append-only journal on every posting. <span className="mono" style={{ fontSize: "10px" }}>Σ debits = Σ credits · invariant enforced in DB + domain</span></p>
+            <h3>Books balance — <span className="num">A$0.00 unaccounted</span></h3>
+            <p>Trial balance recomputed from the append-only journal on every posting. <span className="mono" style={{ fontSize: "10px" }}>money in = money out + fees + owed · invariant enforced in DB + domain</span></p>
           </div>
         </div>
       </section>
@@ -217,7 +217,7 @@ export default function Stage({ data }: { data: StageData }) {
                 <tr key={r.id}>
                   <td className="id">{r.id.slice(0, 12)}</td>
                   <td className="merch">{r.merchant}</td>
-                  <td className="amt">${fmt(r.amountMinor)}<small>{r.feeMinor == null ? "—" : "fee $" + fmt(r.feeMinor)}</small></td>
+                  <td className="amt">A${fmt(r.amountMinor)}<small>{r.feeMinor == null ? "—" : "fee A$" + fmt(r.feeMinor)}</small></td>
                   <td><Track nodes={r.nodes} /></td>
                   <td>
                     {r.pill && <span className={"st " + r.pill.cls}>{r.pill.text}</span>}
@@ -254,7 +254,7 @@ export default function Stage({ data }: { data: StageData }) {
           <div className="panel-h">
             <span className="tick" style={{ background: "var(--violet)" }} />
             <h2>Settlement &amp; reconciliation</h2>
-            <span className="right">invariant: Σ payments − fees = payout</span>
+            <span className="right">invariant: payments − fees = payout</span>
           </div>
           {batches.map((b) => (
             <div className="batch" key={b.id}>

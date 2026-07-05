@@ -71,27 +71,27 @@ export const SEED_EVENTS: Ev[] = [
 
 export const SEED_BATCHES: Batch[] = [
   { id: "batch #2", context: "cut 17:00 · 2 merchants", status: { cls: "auth", text: "SETTLING" },
-    eq: '130.00 − 4.38 = <b>125.62</b> <span class="ok">✓ reconciles</span>' },
+    eq: 'A$130.00 − A$4.38 fees = <b>A$125.62</b> <span class="ok">✓ reconciles</span>' },
   { id: "batch #1", context: "759f75a8 · Northside", status: { cls: "settled", text: "SETTLED" },
-    eq: '250.00 − 8.15 = <b>241.85</b> <span class="ok">✓ paid out</span>' },
+    eq: 'A$250.00 − A$8.15 fees = <b>A$241.85</b> <span class="ok">✓ paid out</span>' },
   { id: "batch #0", context: "seed data · demo", status: { cls: "suspended", text: "SUSPENDED" },
-    eq: '200.00 − 6.52 = 193.48 <span class="bad">≠ 193.47 payout</span>',
-    note: "<em>Off by $0.01</em> — reconciliation parked the batch instead of paying out. The seeded rounding bug the invariant is designed to catch; inspect &amp; release from review." },
+    eq: 'A$200.00 − A$6.52 fees = A$193.48 <span class="bad">≠ A$193.47 payout</span>',
+    note: "<em>Off by A$0.01</em> — reconciliation parked the batch instead of paying out. The seeded rounding bug the invariant is designed to catch; inspect &amp; release from review." },
 ];
 
 export const SEED_ACCOUNTS: Account[] = [
-  { name: "scheme_receivable", side: "ASSET", bal: "Dr 250.00", drcr: "dr" },
-  { name: "merchant_payable", side: "LIABILITY", bal: "Cr 0.00", drcr: "cr" },
-  { name: "platform_fees", side: "REVENUE", bal: "Cr 8.15", drcr: "cr" },
-  { name: "cash", side: "ASSET", bal: "Cr 241.85", drcr: "cr" },
+  { name: "scheme_receivable", side: "money in", bal: "A$250.00", drcr: "dr" },
+  { name: "merchant_payable", side: "owed to merchants", bal: "A$0.00", drcr: "cr" },
+  { name: "platform_fees", side: "fee revenue", bal: "A$8.15", drcr: "cr" },
+  { name: "cash", side: "paid out", bal: "A$241.85", drcr: "cr" },
 ];
 
-export const SEED_TRIAL = "Σ Dr 491.85 = Σ Cr 491.85 — trial balance holds";
+export const SEED_TRIAL = "A$491.85 in  =  A$491.85 out — the books balance";
 
 export const SEED_JOURNAL = [
-  "<b>J-0007</b> capture pay_6d2d · Dr receivable 120.00 · Cr payable 116.22 · Cr fees 3.78",
-  "<b>J-0008</b> payout batch#1 · Dr payable 241.85 · Cr cash 241.85",
-  "<b>J-0009</b> reversal J-0004 · corrections are new entries, never updates",
+  "<b>J-0007</b> captured pay_6d2d · A$120.00 in → A$116.22 to merchant + A$3.78 fee",
+  "<b>J-0008</b> payout batch #1 · A$241.85 paid to merchant from cash",
+  "<b>J-0009</b> reversal of J-0004 · corrections are new entries, never edits",
 ];
 
 export const BENCH: BenchRow[] = [
@@ -108,6 +108,7 @@ export const FOOTER = [
   "Postgres <b>SERIALIZABLE</b> + retry",
   "OpenTelemetry → Tempo",
   "k6 · Testcontainers · jqwik",
+  "all amounts in <b>AUD</b>",
   "github.com/<b>marciomarinho/paylane</b>",
 ];
 
