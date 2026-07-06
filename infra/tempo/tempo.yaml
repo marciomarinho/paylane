@@ -1,0 +1,31 @@
+# Single-binary Tempo for local tracing. Receives OTLP from the OTel Java agents, stores traces
+# on local disk (ephemeral — fine for a demo), and serves them to Grafana.
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+ingester:
+  # Flush quickly so freshly-emitted traces become searchable within seconds (demo-friendly).
+  max_block_duration: 30s
+  complete_block_timeout: 10s
+
+compactor:
+  compaction:
+    block_retention: 1h
+
+storage:
+  trace:
+    backend: local
+    blocklist_poll: 5s
+    local:
+      path: /tmp/tempo/blocks
+    wal:
+      path: /tmp/tempo/wal

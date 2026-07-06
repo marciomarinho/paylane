@@ -6,7 +6,7 @@ A small payments platform you can run end-to-end on a laptop. A card payment is 
 flows over SNS/SQS to a back-office worker, the worker batches it into a merchant settlement, and a
 strict double-entry ledger records every cent — with the books always netting to zero.
 
-It exists to demonstrate payments-domain engineering on a modern Java 21 / Spring Boot stack:
+It exists to demonstrate payments-domain engineering on a modern Java 25 / Spring Boot stack:
 **idempotency, a transactional outbox, effectively-once event processing, double-entry accounting,
 and settlement reconciliation** — each one small, real, and tested against real infrastructure.
 
@@ -14,8 +14,9 @@ and settlement reconciliation** — each one small, real, and tested against rea
 > settlement-worker → ledger` — plus a **reactive twin + k6 benchmark** answering "virtual threads or
 > reactive?" with real numbers ([Benchmark](#benchmark-virtual-threads-vs-reactive)), a **Next.js
 > dashboard** with a typed client generated from the services' OpenAPI specs, and a **GitHub Actions
-> CI pipeline** (build → test → scan → GHCR). One-command local stack, integration tests on
-> Testcontainers. OpenTelemetry tracing is the main remaining layer — see [Roadmap](#roadmap).
+> CI pipeline** (build → test → scan → GHCR), and **OpenTelemetry tracing** into Grafana/Tempo with
+> trace context propagated across the SNS/SQS boundary. One-command local stack, integration tests on
+> Testcontainers. Everything from the original build spec is now in place — see [Roadmap](#roadmap).
 
 ![paylane merchant ops dashboard — money-flow rail, per-payment state-machine tracks, a live outbox→SNS→SQS→worker event feed, settlement reconciliation (with a parked rounding-bug batch), the double-entry trial balance, and the virtual-threads-vs-WebFlux benchmark](docs/dashboard.png)
 
@@ -169,6 +170,29 @@ cd services/ledger && mvn test
    **OWASP dependency-check** runs SCA on each service.
 4. **publish** — on `main`, images are pushed to **GHCR** (`ghcr.io/<owner>/paylane/<service>`).
 
+## Observability
+
+Every JVM service runs the **OpenTelemetry Java agent** (auto-instrumentation, switched on via
+`JAVA_TOOL_OPTIONS` so tests and plain `java -jar` are unaffected), exporting traces over OTLP to
+**Tempo**. The interesting part is the async hop: the agent injects the W3C `traceparent` into the
+**SNS/SQS message attributes** on publish and extracts it on the worker's receive (raw message
+delivery preserves the attributes), so one payment's trace stays connected all the way across the
+message boundary —
+
+```
+payment-api (capture) ─▶ outbox ─▶ SNS ─▶ SQS ─▶ settlement-worker ─▶ HTTP ─▶ ledger ─▶ Postgres
+        └──────────────────────── one trace id, spans linked ────────────────────────┘
+```
+
+**Prometheus** scrapes each service's `/actuator/prometheus`; **Grafana** (provisioned with both
+datasources) shows traces and metrics. Bring the stack up, run `./scripts/demo.sh`, then open
+**Grafana at http://localhost:3300** → Explore → Tempo → search recent traces. One payment's
+end-to-end trace, spanning the SNS/SQS boundary:
+
+![one payment's end-to-end distributed trace in Grafana Tempo — spans across payment-api, SNS, SQS, settlement-worker and ledger, connected by trace context propagated through the message attributes](docs/trace.png)
+
+Observability ports: Grafana `:3300`, Tempo `:3200`, Prometheus `:9090`.
+
 ## Repo layout
 
 ```
@@ -182,7 +206,7 @@ paylane/
 │   └── ledger/                double-entry core (SERIALIZABLE, append-only)
 ├── dashboard/                 Next.js + TS · typed client generated from OpenAPI specs
 ├── bench/                     k6 mixed workload · run.sh · results.md
-├── infra/localstack/          SNS/SQS + DLQ bootstrap
+├── infra/                     localstack bootstrap · tempo · prometheus · grafana provisioning
 └── scripts/                   demo.sh · poison.sh · backpressure.sh
 ```
 
@@ -190,11 +214,12 @@ paylane/
 
 Deliberately staged; the core money-movement slice above is done first because it carries the
 domain weight. Done since: the **reactive twin + benchmark**, the **backpressure exhibit**, the
-**CI pipeline**, and the **dashboard** (all above). Next:
+**CI pipeline**, the **dashboard**, and **OpenTelemetry tracing** (all above). Everything from the
+original build spec is now in place. What's left is genuinely production-scale work:
 
-- **Observability** — OpenTelemetry across all services, trace context propagated through SNS/SQS
-  attributes, Grafana + Tempo + Prometheus in compose.
 - **`infra/`** — Terraform (plan-only) for the AWS shape: SNS, SQS + DLQ, RDS.
+- Multi-region / DR, a real card-scheme integration behind the authorize/capture boundary, and the
+  PCI scope boundary (see [What I'd do next at production scale](#what-id-do-next-at-production-scale)).
 
 ## What I'd do next at production scale
 

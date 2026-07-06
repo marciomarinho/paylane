@@ -1,6 +1,23 @@
 # paylane — full local stack. `docker compose up --build` brings up Postgres x2, LocalStack
-# (SNS/SQS + DLQ), and the three services. No cloud account required.
+# (SNS/SQS + DLQ), the services, the dashboard, and the observability stack (Tempo, Prometheus,
+# Grafana). No cloud account required.
 name: paylane
+
+# OpenTelemetry auto-instrumentation, shared by every JVM service. The agent is baked into each
+# image but only activates because JAVA_TOOL_OPTIONS points at it here. Traces go to Tempo over
+# OTLP; the messaging flags make the agent inject/extract W3C trace context via SNS/SQS message
+# attributes, so a payment's trace stays connected across the async boundary.
+x-otel-env: &otel-env
+  JAVA_TOOL_OPTIONS: "-javaagent:/otel/opentelemetry-javaagent.jar"
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf   # HTTP is the reliable OTLP path here
+  OTEL_TRACES_EXPORTER: otlp
+  OTEL_BSP_SCHEDULE_DELAY: "1000"
+  OTEL_METRICS_EXPORTER: none
+  OTEL_LOGS_EXPORTER: none
+  OTEL_PROPAGATORS: tracecontext,baggage
+  OTEL_INSTRUMENTATION_AWS_SDK_EXPERIMENTAL_USE_PROPAGATOR_FOR_MESSAGING: "true"
+  OTEL_INSTRUMENTATION_MESSAGING_EXPERIMENTAL_RECEIVE_TELEMETRY_ENABLED: "true"
 
 services:
   postgres-payment:
@@ -49,9 +66,43 @@ services:
       timeout: 5s
       retries: 25
 
+  # ── observability ───────────────────────────────────────────────
+  tempo:
+    image: grafana/tempo:2.6.1
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./infra/tempo/tempo.yaml:/etc/tempo/tempo.yaml
+    ports:
+      - "3200:3200"   # Tempo query API (Grafana connects internally)
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning
+    ports:
+      - "3300:3000"   # Grafana UI (host 3300 to avoid the dashboard's 3000)
+    depends_on:
+      - tempo
+      - prometheus
+
+  # ── services ────────────────────────────────────────────────────
   ledger:
     build: ./services/ledger
     environment:
+      <<: *otel-env
+      OTEL_SERVICE_NAME: ledger
       SERVER_PORT: 8082
       LEDGER_DB_URL: jdbc:postgresql://postgres-ledger:5432/ledger
       LEDGER_DB_USER: paylane
@@ -61,10 +112,14 @@ services:
     depends_on:
       postgres-ledger:
         condition: service_healthy
+      tempo:
+        condition: service_started
 
   payment-api:
     build: ./services/payment-api
     environment:
+      <<: *otel-env
+      OTEL_SERVICE_NAME: payment-api
       SERVER_PORT: 8081
       PAYMENT_DB_URL: jdbc:postgresql://postgres-payment:5432/payment
       PAYMENT_DB_USER: paylane
@@ -79,11 +134,15 @@ services:
         condition: service_healthy
       localstack:
         condition: service_healthy
+      tempo:
+        condition: service_started
 
   # Reactive twin of payment-api (WebFlux + R2DBC). Same API, own database. Used by the benchmark.
   payment-api-reactive:
     build: ./services/payment-api-reactive
     environment:
+      <<: *otel-env
+      OTEL_SERVICE_NAME: payment-api-reactive
       SERVER_PORT: 8091
       PAYMENT_R2DBC_URL: r2dbc:postgresql://postgres-payment:5432/payment_reactive
       PAYMENT_JDBC_URL: jdbc:postgresql://postgres-payment:5432/payment_reactive
@@ -99,10 +158,14 @@ services:
         condition: service_healthy
       localstack:
         condition: service_healthy
+      tempo:
+        condition: service_started
 
   settlement-worker:
     build: ./services/settlement-worker
     environment:
+      <<: *otel-env
+      OTEL_SERVICE_NAME: settlement-worker
       SERVER_PORT: 8083
       SETTLEMENT_DB_URL: jdbc:postgresql://postgres-ledger:5432/ledger?currentSchema=settlement
       SETTLEMENT_DB_USER: paylane
@@ -120,9 +183,10 @@ services:
         condition: service_healthy
       ledger:
         condition: service_started
+      tempo:
+        condition: service_started
 
-  # Thin read-only UI: payments, settlement batches, money-in-vs-paid-out. Server-rendered,
-  # typed client generated from the services' OpenAPI specs.
+  # Thin read-only UI in the merchant-ops design; typed client generated from the OpenAPI specs.
   merchant-dashboard:
     build: ./dashboard
     environment:

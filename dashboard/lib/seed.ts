@@ -102,8 +102,8 @@ export const BENCH: BenchRow[] = [
 ];
 
 export const FOOTER = [
-  "Java 21 · <b>virtual threads</b>",
-  "Spring Boot 3.3",
+  "Java 25 · <b>virtual threads</b>",
+  "Spring Boot 3.5",
   "outbox → <b>SNS/SQS</b> · LocalStack",
   "Postgres <b>SERIALIZABLE</b> + retry",
   "OpenTelemetry → Tempo",

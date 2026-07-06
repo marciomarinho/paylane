@@ -17,7 +17,7 @@ permissions:
   security-events: write   # upload Trivy SARIF to the Security tab
 
 env:
-  JAVA_VERSION: "21"
+  JAVA_VERSION: "25"
 
 jobs:
   # 1. Build + unit + integration tests (Testcontainers spins real Postgres/LocalStack on the runner).
@@ -36,7 +36,7 @@ jobs:
           cache: maven
       - name: Build & test (unit + Testcontainers integration)
         working-directory: services/${{ matrix.service }}
-        run: mvn -B verify
+        run: mvn -B verify -Dnet.bytebuddy.experimental=true
       - name: Coverage summary
         if: always()
         working-directory: services/${{ matrix.service }}

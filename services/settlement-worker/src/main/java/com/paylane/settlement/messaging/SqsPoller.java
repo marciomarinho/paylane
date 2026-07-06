@@ -3,6 +3,13 @@ package com.paylane.settlement.messaging;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.paylane.settlement.events.CapturedEvent;
 import com.paylane.settlement.service.SettlementService;
+import io.opentelemetry.api.GlobalOpenTelemetry;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
+import io.opentelemetry.context.propagation.TextMapGetter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,7 +20,9 @@ import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.Message;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -60,6 +69,7 @@ public class SqsPoller implements SmartLifecycle {
                         .queueUrl(queueUrl)
                         .maxNumberOfMessages(10)
                         .waitTimeSeconds(20)
+                        .messageAttributeNames("All")   // includes the injected trace context
                         .build()).messages();
                 for (Message message : messages) {
                     handle(message);
@@ -74,17 +84,54 @@ public class SqsPoller implements SmartLifecycle {
     }
 
     private void handle(Message message) {
-        try {
+        // Continue the trace started in payment-api: extract the W3C context the publisher put in
+        // the message attributes and make this processing a child of it. Now one trace spans
+        // payment-api -> SNS -> SQS -> worker -> ledger.
+        Context parent = extractContext(message);
+        Span span = GlobalOpenTelemetry.getTracer("paylane.settlement-worker")
+                .spanBuilder("settlement process payment.captured")
+                .setSpanKind(SpanKind.CONSUMER)
+                .setParent(parent)
+                .startSpan();
+        try (Scope scope = span.makeCurrent()) {
             CapturedEvent event = mapper.readValue(message.body(), CapturedEvent.class);
             if (event.paymentId() == null || event.merchantId() == null || event.amountMinor() <= 0) {
                 throw new IllegalArgumentException("malformed capture event: " + message.body());
             }
+            span.setAttribute("paylane.payment_id", event.paymentId().toString());
             service.handleCapture(event);
             sqs.deleteMessage(b -> b.queueUrl(queueUrl).receiptHandle(message.receiptHandle()));
         } catch (Exception e) {
             // Leave it on the queue: redelivery, then DLQ. Do not delete.
+            span.recordException(e);
+            span.setStatus(StatusCode.ERROR);
             log.warn("failed to process message {}: {}", message.messageId(), e.getMessage());
+        } finally {
+            span.end();
         }
+    }
+
+    private static final TextMapGetter<Map<String, String>> GETTER = new TextMapGetter<>() {
+        @Override
+        public Iterable<String> keys(Map<String, String> carrier) {
+            return carrier.keySet();
+        }
+
+        @Override
+        public String get(Map<String, String> carrier, String key) {
+            return carrier == null ? null : carrier.get(key);
+        }
+    };
+
+    private Context extractContext(Message message) {
+        Map<String, String> carrier = new HashMap<>();
+        message.messageAttributes().forEach((k, v) -> {
+            if (v.stringValue() != null) {
+                carrier.put(k, v.stringValue());
+            }
+        });
+        return GlobalOpenTelemetry.getPropagators().getTextMapPropagator()
+                .extract(Context.current(), carrier, GETTER);
     }
 
     private void sleep() {

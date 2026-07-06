@@ -7,7 +7,7 @@
 These services are IO-bound request/response systems: a request spends almost all its time waiting
 on Postgres or an HTTP call to another service, not on CPU. The two mainstream ways to keep such a
 service from tying up an OS thread per in-flight request are (a) reactive/non-blocking stacks
-(WebFlux + R2DBC) and (b) Java 21 virtual threads under a normal blocking (MVC + JDBC) programming
+(WebFlux + R2DBC) and (b) Java 25 virtual threads under a normal blocking (MVC + JDBC) programming
 model.
 
 ## Decision
