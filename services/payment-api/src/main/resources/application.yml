@@ -3,7 +3,7 @@ spring:
     name: payment-api
   threads:
     virtual:
-      enabled: true            # Java 21 virtual threads: one thread per request, blocking JDBC stays cheap
+      enabled: true            # Java 25 virtual threads: one thread per request, blocking JDBC stays cheap
   datasource:
     url: ${PAYMENT_DB_URL:jdbc:postgresql://localhost:5432/payment}
     username: ${PAYMENT_DB_USER:paylane}

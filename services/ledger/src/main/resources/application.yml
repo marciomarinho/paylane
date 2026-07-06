@@ -3,7 +3,7 @@ spring:
     name: ledger
   threads:
     virtual:
-      enabled: true            # Java 21 virtual threads for the MVC request path
+      enabled: true            # Java 25 virtual threads for the MVC request path
   datasource:
     url: ${LEDGER_DB_URL:jdbc:postgresql://localhost:5433/ledger}
     username: ${LEDGER_DB_USER:paylane}
