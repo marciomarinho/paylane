@@ -192,15 +192,17 @@ message boundary —
 
 ```mermaid
 flowchart LR
-    cap["payment-api<br/>capture"]:::svc
-    ob["outbox"]:::infra
-    sns["SNS"]:::infra
-    sqs["SQS"]:::infra
-    sw["settlement-worker"]:::svc
-    lg["ledger"]:::svc
-    pg[("Postgres")]:::infra
-
-    cap --> ob --> sns -->|"traceparent in<br/>SNS/SQS message attributes"| sqs --> sw -->|"HTTP"| lg --> pg
+    subgraph trace["one trace id · spans linked across the async hop"]
+      direction LR
+      cap["payment-api<br/>capture"]:::svc
+      ob["outbox"]:::infra
+      sns["SNS"]:::infra
+      sqs["SQS"]:::infra
+      sw["settlement-worker"]:::svc
+      lg["ledger"]:::svc
+      pg[("Postgres")]:::infra
+      cap --> ob --> sns -. "traceparent" .-> sqs --> sw -->|"HTTP"| lg --> pg
+    end
 
     classDef svc fill:#eef4ec,stroke:#4a8a5a,color:#16301f;
     classDef infra fill:#f2ecdc,stroke:#a5894a,color:#3a2f1a;
