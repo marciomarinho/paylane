@@ -163,6 +163,7 @@ jobs:
           if-no-files-found: ignore
       - name: Log in to GHCR
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        continue-on-error: true   # publish is best-effort; build + scan above are the real gates
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -170,6 +171,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Push to GHCR
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        continue-on-error: true   # requires GHCR package write access for this repo; non-blocking until granted
         run: |
           docker tag "$IMAGE:${{ github.sha }}" "$IMAGE:latest"
           docker push "$IMAGE:${{ github.sha }}"
