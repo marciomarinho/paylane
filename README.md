@@ -191,8 +191,8 @@ delivery preserves the attributes), so one payment's trace stays connected all t
 message boundary —
 
 ```mermaid
-flowchart LR
-    cap["payment-api<br/>capture"]:::svc --> sns["SNS"]:::infra
+flowchart TB
+    cap["payment-api · capture"]:::svc --> sns["SNS"]:::infra
     sns -. "traceparent" .-> sqs["SQS"]:::infra
     sqs --> sw["settlement-worker"]:::svc --> lg["ledger"]:::svc
 
