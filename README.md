@@ -24,21 +24,32 @@ and settlement reconciliation** — each one small, real, and tested against rea
 
 ## Architecture
 
-```
-                    Idempotency-Key on every write
-                               │
-   client ──▶  payment-api  ──┴──▶  Postgres (payment)         ledger ──▶ Postgres (ledger)
-              (MVC + virtual         │  payment, merchant         ▲          account, journal_entry,
-               threads)              │  idempotency_key           │ HTTP     posting  (SERIALIZABLE,
-                   │                 │  outbox  ◀── same tx ──┐    │          append-only, balances view)
-                   │                 └───────────────────────┘    │
-                   │  outbox poller                               │
-                   ▼                                              │
-                  SNS  ──▶  SQS  ──▶  settlement-worker  ─────────┘
-              payment-events   (raw)   dedupe (effectively-once),
-                          │            batch per merchant, reconcile,
-                          └──▶ DLQ     post payout to ledger
-                        (poison msgs)  Postgres (settlement schema)
+```mermaid
+flowchart TB
+    client(["client / merchant app"]):::ext
+    pa["<b>payment-api</b><br/>MVC + virtual threads<br/>CREATED → AUTHORIZED → CAPTURED"]:::svc
+    pgp[("Postgres · payment<br/>payment · merchant<br/>idempotency_key · outbox")]:::infra
+    sns(["SNS<br/>payment-events"]):::infra
+    sqs(["SQS"]):::infra
+    dlq(["DLQ<br/>poison msgs"]):::infra
+    sw["<b>settlement-worker</b><br/>dedupe · batch/merchant · reconcile"]:::svc
+    pgs[("Postgres<br/>settlement")]:::infra
+    ledger["<b>ledger</b><br/>Postgres SERIALIZABLE<br/>double-entry · append-only"]:::svc
+    pgl[("Postgres · ledger<br/>account · journal_entry · posting")]:::infra
+
+    client -->|"Idempotency-Key on every write"| pa
+    pa -->|"payment + outbox<br/>in one tx"| pgp
+    pgp -.->|"outbox poller"| sns
+    sns --> sqs
+    sqs -->|"at-least-once"| sw
+    sw -.->|"3 retries"| dlq
+    sw --> pgs
+    sw -->|"HTTP · post payout"| ledger
+    ledger --> pgl
+
+    classDef ext fill:#e8eef7,stroke:#4a6fa5,color:#1a2a3a;
+    classDef svc fill:#eef4ec,stroke:#4a8a5a,color:#16301f;
+    classDef infra fill:#f2ecdc,stroke:#a5894a,color:#3a2f1a;
 ```
 
 Three services plus the event backbone. Everything runs locally: two Postgres instances and
@@ -179,10 +190,23 @@ Every JVM service runs the **OpenTelemetry Java agent** (auto-instrumentation, s
 delivery preserves the attributes), so one payment's trace stays connected all the way across the
 message boundary —
 
+```mermaid
+flowchart LR
+    cap["payment-api<br/>capture"]:::svc
+    ob["outbox"]:::infra
+    sns["SNS"]:::infra
+    sqs["SQS"]:::infra
+    sw["settlement-worker"]:::svc
+    lg["ledger"]:::svc
+    pg[("Postgres")]:::infra
+
+    cap --> ob --> sns -->|"traceparent in<br/>SNS/SQS message attributes"| sqs --> sw -->|"HTTP"| lg --> pg
+
+    classDef svc fill:#eef4ec,stroke:#4a8a5a,color:#16301f;
+    classDef infra fill:#f2ecdc,stroke:#a5894a,color:#3a2f1a;
 ```
-payment-api (capture) ─▶ outbox ─▶ SNS ─▶ SQS ─▶ settlement-worker ─▶ HTTP ─▶ ledger ─▶ Postgres
-        └──────────────────────── one trace id, spans linked ────────────────────────┘
-```
+
+<sub>One payment stays a single trace id, spans linked end-to-end — the W3C <code>traceparent</code> rides the SNS/SQS message attributes across the async hop.</sub>
 
 **Prometheus** scrapes each service's `/actuator/prometheus`; **Grafana** (provisioned with both
 datasources) shows traces and metrics. Bring the stack up, run `./scripts/demo.sh`, then open
