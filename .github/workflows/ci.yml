@@ -6,6 +6,8 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"   # weekly Mon 06:00 UTC — OWASP dependency-check (SCA) sweep, off the push path
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -61,6 +63,10 @@ jobs:
   # 2. DevSecOps: OWASP dependency check (SCA). Non-blocking — reports, uploads, never gates the
   #    build. Set an NVD_API_KEY repo secret to speed up / avoid NVD rate limits.
   dependency-check:
+    # OWASP dependency-check pulls the full NVD feed (slow & NVD-rate-limited without an
+    # NVD_API_KEY). It never gates the build, so keep it OFF the push/PR path — it runs on the
+    # weekly schedule and on manual dispatch instead, so normal CI stays fast.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
