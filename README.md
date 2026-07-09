@@ -192,23 +192,15 @@ message boundary —
 
 ```mermaid
 flowchart LR
-    subgraph trace["one trace id · spans linked across the async hop"]
-      direction LR
-      cap["payment-api<br/>capture"]:::svc
-      ob["outbox"]:::infra
-      sns["SNS"]:::infra
-      sqs["SQS"]:::infra
-      sw["settlement-worker"]:::svc
-      lg["ledger"]:::svc
-      pg[("Postgres")]:::infra
-      cap --> ob --> sns -. "traceparent" .-> sqs --> sw -->|"HTTP"| lg --> pg
-    end
+    cap["payment-api<br/>capture"]:::svc --> sns["SNS"]:::infra
+    sns -. "traceparent" .-> sqs["SQS"]:::infra
+    sqs --> sw["settlement-worker"]:::svc --> lg["ledger"]:::svc
 
     classDef svc fill:#eef4ec,stroke:#4a8a5a,color:#16301f;
     classDef infra fill:#f2ecdc,stroke:#a5894a,color:#3a2f1a;
 ```
 
-<sub>One payment stays a single trace id, spans linked end-to-end — the W3C <code>traceparent</code> rides the SNS/SQS message attributes across the async hop.</sub>
+<sub>One payment is a single trace, spans linked end-to-end. The dashed hop is the async boundary: the W3C <code>traceparent</code> rides the SNS/SQS message attributes, so the worker's spans join the same trace.</sub>
 
 **Prometheus** scrapes each service's `/actuator/prometheus`; **Grafana** (provisioned with both
 datasources) shows traces and metrics. Bring the stack up, run `./scripts/demo.sh`, then open
